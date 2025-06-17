@@ -7,7 +7,14 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-container">
+    <!-- NOVO: Tela de Início para ativar o modo Tela Cheia -->
+    <div id="start-screen">
+        <h1>Simple Survive</h1>
+        <p>Prepare-se para sobreviver!</p>
+        <button id="start-button">Iniciar Jogo</button>
+    </div>
+
+    <div id="game-container" class="hidden">
         <canvas id="gameCanvas"></canvas>
         
         <!-- Elementos do Joystick -->
@@ -42,7 +49,7 @@
             <p>Tempo Sobrevivido: <span id="final-time"></span></p>
             <p>Inimigos Abatidos: <span id="final-score"></span></p>
             <p>Nível Alcançado: <span id="final-level"></span></p>
-            <button onclick="restartGame()">Jogar Novamente</button>
+            <button id="restart-button">Jogar Novamente</button> <!-- ALTERADO: Adicionado ID para JS -->
         </div>
     </div>
 
