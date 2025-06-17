@@ -22,8 +22,8 @@ let enemies = [];
 let projectiles = [];
 let xpOrbs = [];
 let bossActive = false;
-let bossSpawnedForCurrentBossWave = false; // Flag para controlar spawn único por onda de boss
-let strengthWaveCount = 0; // Contador para as "ondas de fortalecimento"
+let bossSpawnedForCurrentBossWave = false; 
+let strengthWaveCount = 0; 
 
 let camera = {
     x: 0, y: 0, width: window.innerWidth, height: window.innerHeight,
@@ -43,11 +43,10 @@ let deltaTime = 0;
 let score = 0;
 
 let enemySpawnTimer = 0;
-// MODIFICADO: Transformado de const para let para poder ser alterado
-let enemySpawnInterval = 2000; // ms for normal enemies
-const MIN_SPAWN_INTERVAL = 500; // Valor mínimo para o intervalo de spawn
+let enemySpawnInterval = 2000;
+const MIN_SPAWN_INTERVAL = 500; 
 let enemyStrengthTimer = 0;
-const enemyStrengthInterval = 20000; // Inimigos mais fortes a cada 20 segundos
+const enemyStrengthInterval = 20000;
 
 // CORES AJUSTADAS
 const TILE_COLOR_1 = '#555555';
@@ -72,8 +71,9 @@ const ENEMY_RANGED_MAX_ATTACK_RANGE = 7 * TILE_SIZE;
 const ENEMY_RANGED_PREFERRED_DISTANCE = 5 * TILE_SIZE;
 const ENEMY_RANGED_DISTANCE_BUFFER = 1 * TILE_SIZE;
 
-const BOSS_RANGED_PREFERRED_DISTANCE = 5 * TILE_SIZE;
-const BOSS_RANGED_MAX_ATTACK_RANGE = 10 * TILE_SIZE;
+// MODIFICADO: Ajuste das constantes do Boss Ranged
+const BOSS_RANGED_PREFERRED_DISTANCE = 10 * TILE_SIZE;
+const BOSS_RANGED_MAX_ATTACK_RANGE = 20 * TILE_SIZE;
 const BOSS_RANGED_ATTACK_INTERVAL = 1.5; // s
 const BOSS_RANGED_BURST_COOLDOWN = 5; // s
 const BOSS_RANGED_BURST_PROJECTILES = 20;
@@ -153,13 +153,10 @@ function createPlayer() {
 
 // --- Enemy Object ---
 function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
-    // MODIFICADO: Nova lógica de spawn ao redor do jogador
     let spawnX, spawnY;
-    // Calcula um raio de spawn um pouco maior que a diagonal da tela para garantir que o inimigo apareça fora da visão
     const spawnRadius = Math.hypot(camera.width / 2, camera.height / 2) + TILE_SIZE * 2;
     const randomAngle = Math.random() * 2 * Math.PI;
 
-    // Define a posição de spawn em um círculo ao redor do jogador
     spawnX = player.x + Math.cos(randomAngle) * spawnRadius;
     spawnY = player.y + Math.sin(randomAngle) * spawnRadius;
 
@@ -206,27 +203,26 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
             if (this.type === 'ranged') {
                 const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
 
-                // MODIFICADO: Lógica de perseguição constante para inimigos a distância
+                // --- MODIFICADO: Lógica de perseguição e posicionamento ---
+                // Se estiver muito perto, afaste-se (kiting).
                 if (distToPlayer < ENEMY_RANGED_PREFERRED_DISTANCE - ENEMY_RANGED_DISTANCE_BUFFER) {
-                    // Muito perto, afasta-se
                     moveX *= -1;
                     moveY *= -1;
-                } else if (distToPlayer > ENEMY_RANGED_PREFERRED_DISTANCE + ENEMY_RANGED_DISTANCE_BUFFER) {
-                    // Muito longe, aproxima-se (esta condição já era a padrão, mas explicitamos)
-                    // Não faz nada, pois moveX e moveY já estão corretos
-                } else {
-                    // Na distância ideal, para de se mover para atirar
+                }
+                // Se estiver na distância ideal, pare de se mover para atirar com mais precisão.
+                else if (distToPlayer <= ENEMY_RANGED_PREFERRED_DISTANCE + ENEMY_RANGED_DISTANCE_BUFFER) {
                     intendedSpeed = 0;
                 }
+                // Se estiver longe (qualquer distância maior que a ideal), aproxime-se.
+                // Não precisa de 'else', pois a aproximação já é o comportamento padrão.
 
                 this.rangedAttackTimer -= dt;
-                // Ataca se estiver parado (na distância ideal) e o cooldown tiver acabado
-                if (intendedSpeed === 0 && this.rangedAttackTimer <= 0 && distToPlayer <= ENEMY_RANGED_MAX_ATTACK_RANGE) {
+                // Atira se o cooldown zerou E se o jogador está dentro do alcance máximo de tiro.
+                if (this.rangedAttackTimer <= 0 && distToPlayer <= ENEMY_RANGED_MAX_ATTACK_RANGE) {
                     createProjectile(this.x, this.y, angleToPlayer, this.damage, 1, 'enemy');
                     this.rangedAttackTimer = this.rangedAttackInterval;
                 }
             }
-
             // Aplica o movimento
             this.x += moveX * intendedSpeed * dt;
             this.y += moveY * intendedSpeed * dt;
@@ -250,18 +246,32 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
             const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
             const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
             let moveX = Math.cos(angleToPlayer), moveY = Math.sin(angleToPlayer), intendedSpeed = this.speed;
-            if (distToPlayer < BOSS_RANGED_PREFERRED_DISTANCE - ENEMY_RANGED_DISTANCE_BUFFER) { moveX *= -1; moveY *= -1; }
-            else if (distToPlayer > BOSS_RANGED_PREFERRED_DISTANCE + ENEMY_RANGED_DISTANCE_BUFFER && distToPlayer < BOSS_RANGED_MAX_ATTACK_RANGE * 1.2) {}
-            else { intendedSpeed = 0; }
-            this.x += moveX * intendedSpeed * dt; this.y += moveY * intendedSpeed * dt;
+
+            // --- MODIFICADO: Lógica de perseguição e posicionamento do Boss ---
+            // Se estiver muito perto, afaste-se.
+            if (distToPlayer < BOSS_RANGED_PREFERRED_DISTANCE - ENEMY_RANGED_DISTANCE_BUFFER) {
+                moveX *= -1;
+                moveY *= -1;
+            }
+            // Se estiver na distância ideal, pare de se mover.
+            else if (distToPlayer <= BOSS_RANGED_PREFERRED_DISTANCE + ENEMY_RANGED_DISTANCE_BUFFER) {
+                intendedSpeed = 0;
+            }
+            // Se estiver longe, aproxime-se (comportamento padrão).
+
+            this.x += moveX * intendedSpeed * dt;
+            this.y += moveY * intendedSpeed * dt;
+            
+            // Ataque normal (cone)
             this.rangedAttackTimer -= dt;
             if (this.rangedAttackTimer <= 0 && distToPlayer <= BOSS_RANGED_MAX_ATTACK_RANGE) {
                 const coneSpread = Math.PI / 12;
                 for (let i = -1; i <= 1; i++) createProjectile(this.x, this.y, angleToPlayer + (i * coneSpread), this.damage, 1, 'enemy', true);
                 this.rangedAttackTimer = BOSS_RANGED_ATTACK_INTERVAL;
             }
+            // Ataque em rajada (burst)
             this.burstAttackTimer -= dt;
-            if (this.burstAttackTimer <= 0 && distToPlayer <= BOSS_RANGED_MAX_ATTACK_RANGE * 1.1) {
+            if (this.burstAttackTimer <= 0 && distToPlayer <= BOSS_RANGED_MAX_ATTACK_RANGE) {
                 for (let i = 0; i < BOSS_RANGED_BURST_PROJECTILES; i++) {
                     setTimeout(() => {
                         if (!this.hp || this.hp <= 0) return;
@@ -292,7 +302,7 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
         takeDamage: function (amount) { this.hp -= amount; if (this.hp <= 0) this.die(); },
         die: function () {
             createXPOrb(this.x, this.y, this.xpDrop); score++;
-            if (this.isBoss) { bossActive = false; /* bossSpawnedForCurrentBossWave é resetado em scaleEnemies */ }
+            if (this.isBoss) { bossActive = false; }
             if (player.upgrades.enemyDeathExplosion) {
                 const dirs = [0, Math.PI / 2, Math.PI, Math.PI * 3 / 2];
                 dirs.forEach(a => createProjectile(this.x, this.y, a, Math.max(1, Math.floor(this.damage / 2)), 1, 'enemy_explosion'));
@@ -310,10 +320,14 @@ function createProjectile(x, y, angle, damage, penetration, owner, isBossProject
     if (owner === 'enemy') {
         pColor = isBossProjectile ? '#FF6347' : '#CD5C5C'; pRadius = (isBossProjectile ? 0.2 : 0.12) * TILE_SIZE; pSpeed = (isBossProjectile ? 7 : 6) * TILE_SIZE;
     } else if (owner === 'enemy_explosion') { pColor = '#d2b41e'; pRadius = 0.11 * TILE_SIZE; pSpeed = 5 * TILE_SIZE; }
+    
+    // MODIFICADO: A vida útil do projétil do boss agora usa o novo alcance máximo
+    let lifeTimeRange = (owner === 'player') ? PLAYER_MAX_ATTACK_RANGE : (isBossProjectile ? BOSS_RANGED_MAX_ATTACK_RANGE : ENEMY_RANGED_MAX_ATTACK_RANGE);
+
     projectiles.push({
         x: x, y: y, radius: pRadius, color: pColor, speed: pSpeed, dx: Math.cos(angle), dy: Math.sin(angle),
         damage: damage, penetrationLeft: penetration, owner: owner, hitTargets: [],
-        lifeTime: owner === 'player' ? (PLAYER_MAX_ATTACK_RANGE / (pSpeed * 0.95)) : (ENEMY_RANGED_MAX_ATTACK_RANGE / (pSpeed * 0.95)),
+        lifeTime: lifeTimeRange / (pSpeed * 0.95), // Calcula a duração baseada no alcance
         update: function (dt) { this.x += this.dx * this.speed * dt; this.y += this.dy * this.speed * dt; this.lifeTime -= dt; },
         draw: function () {
             ctx.fillStyle = this.color; ctx.beginPath();
@@ -350,17 +364,10 @@ function checkCollisions() {
                     if (p.penetrationLeft <= 0) { projectiles.splice(i, 1); pRemoved = true; break; }
                 }
             }
-        } else if (p.owner === 'enemy') {
+        } else if (p.owner === 'enemy' || p.owner === 'enemy_explosion') {
             if (Math.hypot(p.x - player.x, p.y - player.y) < p.radius + player.radius) {
-                if (!player.isInvincible) player.takeDamage(p.damage); projectiles.splice(i, 1); pRemoved = true;
-            }
-        } else if (p.owner === 'enemy_explosion') {
-            for (let j = enemies.length - 1; j >= 0; j--) {
-                const e = enemies[j]; if (!e || p.hitTargets.includes(e)) continue;
-                if (Math.hypot(p.x - e.x, p.y - e.y) < p.radius + e.radius) {
-                    e.takeDamage(p.damage); p.hitTargets.push(e); p.penetrationLeft--;
-                    if (p.penetrationLeft <= 0) { projectiles.splice(i, 1); pRemoved = true; break; }
-                }
+                if (!player.isInvincible) player.takeDamage(p.damage);
+                projectiles.splice(i, 1); pRemoved = true;
             }
         }
         if (!pRemoved && (p.x < camera.x - 2 * TILE_SIZE || p.x > camera.x + camera.width + 2 * TILE_SIZE || p.y < camera.y - 2 * TILE_SIZE || p.y > camera.y + camera.height + 2 * TILE_SIZE)) {
@@ -371,9 +378,7 @@ function checkCollisions() {
         enemies.forEach(e => {
             if (!e) return;
             if (Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
-                if (e.type === 'melee' || (e.type === 'ranged' && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius - (0.1 * TILE_SIZE))) {
-                    player.takeDamage(e.damage);
-                }
+                player.takeDamage(e.damage);
             }
         });
     }
@@ -434,9 +439,8 @@ function scaleEnemies() {
         enemyBaseStats.xpBonus += 1;
         enemyStrengthTimer = 0;
 
-        // MODIFICADO: Reduz o intervalo de spawn a cada onda de fortalecimento
         if (enemySpawnInterval > MIN_SPAWN_INTERVAL) {
-            enemySpawnInterval -= 50; // Reduz em 0.05s
+            enemySpawnInterval -= 100;
         }
 
         console.log(`Enemies stronger! Wave: ${strengthWaveCount}, HP: ${enemyBaseStats.hp}, New Spawn Interval: ${enemySpawnInterval}ms`);
@@ -496,10 +500,10 @@ function resizeCanvas() {
 }
 function initGame() {
     resizeCanvas(); player = createPlayer(); camera.update();
-    bossActive = false; bossSpawnedForCurrentBossWave = false; strengthWaveCount = 0; // Resetar contadores de boss
+    bossActive = false; bossSpawnedForCurrentBossWave = false; strengthWaveCount = 0;
     enemies = []; projectiles = []; xpOrbs = []; gameTime = 0; score = 0;
     enemySpawnTimer = 0; enemyStrengthTimer = 0;
-    enemySpawnInterval = 2000; // MODIFICADO: Reseta o intervalo de spawn ao iniciar o jogo
+    enemySpawnInterval = 2000;
     enemyBaseStats = { hp: 10, damage: 5, rangedDamage: 7, colorLevel: 0, xpBonus: 0 };
     playerChosenUniqueUpgrades.clear(); gameState = 'playing';
     levelUpScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); updateUI();
