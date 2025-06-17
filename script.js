@@ -2,6 +2,10 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // --- Elementos de UI e Jogo ---
+const gameContainer = document.getElementById('game-container');
+const startScreen = document.getElementById('start-screen');
+const startButton = document.getElementById('start-button');
+const restartButton = document.getElementById('restart-button'); // ALTERADO
 const hpBar = document.getElementById('hp-bar');
 const hpText = document.getElementById('hp-text');
 const xpBar = document.getElementById('xp-bar');
@@ -27,7 +31,13 @@ let joystickVector = { x: 0, y: 0 };
 let joystickTouchId = null;
 let joystickCenterX, joystickCenterY, joystickRadius;
 
-// Game settings
+// --- NOVO: Variáveis para escala e constantes do jogo ---
+let TILE_SIZE; 
+let PLAYER_MAX_ATTACK_RANGE, ENEMY_RANGED_MAX_ATTACK_RANGE, ENEMY_RANGED_PREFERRED_DISTANCE,
+    ENEMY_RANGED_DISTANCE_BUFFER, BOSS_RANGED_PREFERRED_DISTANCE, BOSS_RANGED_MAX_ATTACK_RANGE,
+    BOSS_MELEE_DASH_DISTANCE;
+// --------------------------------------------------------
+
 let player;
 let enemies = [];
 let projectiles = [];
@@ -48,7 +58,7 @@ let camera = {
 
 const keysPressed = {};
 let gameTime = 0;
-let gameState = 'playing';
+let gameState = 'start'; // ALTERADO: Começa na tela de início
 let lastTime = 0;
 let deltaTime = 0;
 let score = 0;
@@ -68,19 +78,29 @@ const BOSS_COLOR_MELEE = '#8B0000';
 const BOSS_COLOR_RANGED = '#00008B';
 
 const BASE_XP_DROP = 2;
-const TILE_SIZE = 50;
 
-const PLAYER_MAX_ATTACK_RANGE = 10 * TILE_SIZE;
-const ENEMY_RANGED_MAX_ATTACK_RANGE = 7 * TILE_SIZE;
-const ENEMY_RANGED_PREFERRED_DISTANCE = 5 * TILE_SIZE;
-const ENEMY_RANGED_DISTANCE_BUFFER = 1 * TILE_SIZE;
-
-const BOSS_RANGED_PREFERRED_DISTANCE = 10 * TILE_SIZE;
-const BOSS_RANGED_MAX_ATTACK_RANGE = 20 * TILE_SIZE;
 const BOSS_RANGED_ATTACK_INTERVAL = 1.5;
 const BOSS_RANGED_BURST_COOLDOWN = 5;
 const BOSS_RANGED_BURST_PROJECTILES = 20;
-const BOSS_MELEE_DASH_DISTANCE = 10 * TILE_SIZE;
+
+// --- NOVO: Função para definir a escala do jogo ---
+function setGameScaleAndConstants() {
+    const isMobile = 'ontouchstart' in window;
+
+    // Se for mobile, "dá zoom out" diminuindo o tamanho base do tile
+    // Você pode ajustar o valor 35 para mais ou para menos.
+    TILE_SIZE = isMobile ? 35 : 50;
+
+    // As constantes que dependem do TILE_SIZE são agora calculadas aqui
+    PLAYER_MAX_ATTACK_RANGE = 10 * TILE_SIZE;
+    ENEMY_RANGED_MAX_ATTACK_RANGE = 7 * TILE_SIZE;
+    ENEMY_RANGED_PREFERRED_DISTANCE = 5 * TILE_SIZE;
+    ENEMY_RANGED_DISTANCE_BUFFER = 1 * TILE_SIZE;
+    BOSS_RANGED_PREFERRED_DISTANCE = 10 * TILE_SIZE;
+    BOSS_RANGED_MAX_ATTACK_RANGE = 20 * TILE_SIZE;
+    BOSS_MELEE_DASH_DISTANCE = 10 * TILE_SIZE;
+}
+
 
 // --- Player Object ---
 function createPlayer() {
@@ -92,7 +112,7 @@ function createPlayer() {
         hpRegenRate: 2, hpRegenInterval: 3, hpRegenTimer: 0,
         isInvincible: false, invincibleTimer: 0, invincibleDuration: 0.2,
         xp: 0, level: 1, xpToNextLevel: 10,
-        pickupRadius: 1.5 * TILE_SIZE,
+        pickupRadius: 1.5 * TILE_SIZE, // ALTERADO: usa a variável TILE_SIZE
         projectilesPerShot: 1, projectilePenetration: 1,
         upgrades: { enemyDeathExplosion: false },
 
@@ -100,7 +120,6 @@ function createPlayer() {
             let moveX = 0;
             let moveY = 0;
 
-            // --- Lógica de Movimento: Prioriza Joystick, depois Teclado ---
             if (joystickActive) {
                 moveX = joystickVector.x;
                 moveY = joystickVector.y;
@@ -117,7 +136,6 @@ function createPlayer() {
                 this.y += (moveY / magnitude) * this.speed * dt;
             }
 
-            // Lógica de ataque e regeneração (inalterada)
             this.attackCooldown -= dt;
             if (this.attackCooldown <= 0) { this.shoot(); this.attackCooldown = this.attackSpeed; }
             this.hpRegenTimer += dt;
@@ -165,7 +183,7 @@ function createPlayer() {
 }
 
 
-// --- Enemy Object (lógica inalterada) ---
+// --- Enemy Object ---
 function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
     let spawnX, spawnY;
     const spawnRadius = Math.hypot(camera.width / 2, camera.height / 2) + TILE_SIZE * 2;
@@ -314,7 +332,7 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
 }
 
 
-// --- Projectile Object (lógica inalterada) ---
+// --- Projectile Object ---
 function createProjectile(x, y, angle, damage, penetration, owner, isBossProjectile = false) {
     let pColor = '#c92e2e', pRadius = 0.1 * TILE_SIZE, pSpeed = 9 * TILE_SIZE;
     if (owner === 'enemy') {
@@ -337,8 +355,8 @@ function createProjectile(x, y, angle, damage, penetration, owner, isBossProject
     });
 }
 
-// --- Restante das funções de lógica do jogo (inalteradas ou com poucas mudanças) ---
-// ... (copie o restante do seu script.js original a partir daqui)
+// (O restante das funções do jogo permanece o mesmo, apenas o init/restart e o loop principal são ajustados)
+// ...
 function createXPOrb(x, y, value) {
     xpOrbs.push({
         x: x, y: y, radius: 0.12 * TILE_SIZE, color: '#8A2BE2', value: value,
@@ -410,7 +428,6 @@ function updateUI() {
 function spawnEnemies() {
     if (strengthWaveCount > 0 && strengthWaveCount % 5 === 0 && !bossSpawnedForCurrentBossWave && !bossActive) {
         const bossType = Math.random() < 0.5 ? 'melee' : 'ranged';
-        console.log(`Spawning ${bossType.toUpperCase()} BOSS for strength wave ${strengthWaveCount}! (Time: ${Math.floor(gameTime/1000)}s)`);
         createEnemy(bossType, true, bossType);
         enemySpawnTimer = -3000;
         return;
@@ -434,7 +451,6 @@ function scaleEnemies() {
         enemyBaseStats.xpBonus += 1;
         enemyStrengthTimer = 0;
         if (enemySpawnInterval > MIN_SPAWN_INTERVAL) { enemySpawnInterval -= 100; }
-        console.log(`Enemies stronger! Wave: ${strengthWaveCount}, HP: ${enemyBaseStats.hp}, New Spawn Interval: ${enemySpawnInterval}ms`);
         if (strengthWaveCount % 5 === 0) { bossSpawnedForCurrentBossWave = false; }
     }
 }
@@ -482,33 +498,62 @@ function resizeCanvas() {
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     camera.width = canvas.width; camera.height = canvas.height; 
     if (player) camera.update();
-    setupJoystick(); // Reposiciona o joystick ao redimensionar
+    setupJoystick();
 }
+
 function initGame() {
-    resizeCanvas(); player = createPlayer(); camera.update();
+    setGameScaleAndConstants(); // NOVO: Define a escala do jogo
+    resizeCanvas();
+    player = createPlayer();
+    camera.update();
     bossActive = false; bossSpawnedForCurrentBossWave = false; strengthWaveCount = 0;
     enemies = []; projectiles = []; xpOrbs = []; gameTime = 0; score = 0;
     enemySpawnTimer = 0; enemyStrengthTimer = 0;
     enemySpawnInterval = 2000;
     enemyBaseStats = { hp: 10, damage: 5, rangedDamage: 7, colorLevel: 0, xpBonus: 0 };
-    playerChosenUniqueUpgrades.clear(); gameState = 'playing';
-    levelUpScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); updateUI();
+    playerChosenUniqueUpgrades.clear();
+    gameState = 'playing';
+    levelUpScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    gameContainer.classList.remove('hidden'); // Mostra o container do jogo
+    updateUI();
 }
+
 function gameOver() {
-    gameState = 'gameOver'; finalTimeText.textContent = `${Math.floor(gameTime / 1000)}s`;
-    finalScoreText.textContent = score; finalLevelText.textContent = player.level;
+    gameState = 'gameOver';
+    finalTimeText.textContent = `${Math.floor(gameTime / 1000)}s`;
+    finalScoreText.textContent = score;
+    finalLevelText.textContent = player.level;
     gameOverScreen.classList.remove('hidden');
 }
-function restartGame() { initGame(); lastTime = performance.now(); requestAnimationFrame(gameLoop); }
+
+function restartGame() {
+    initGame();
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+}
+
 function togglePause() {
-    // Pausa não funciona em mobile por padrão, mas mantemos para desktop
     if (gameState === 'playing') gameState = 'paused';
     else if (gameState === 'paused') { gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(gameLoop); }
 }
 
+// --- NOVO: Função para entrar em tela cheia ---
+function enterFullscreen() {
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+    } else if (elem.mozRequestFullScreen) { /* Firefox */
+        elem.mozRequestFullScreen();
+    } else if (elem.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+        elem.webkitRequestFullscreen();
+    } else if (elem.msRequestFullscreen) { /* IE/Edge */
+        elem.msRequestFullscreen();
+    }
+}
+
 // --- Lógica do Joystick ---
 function setupJoystick() {
-    // Mostra o joystick apenas se for um dispositivo de toque
     if ('ontouchstart' in window) {
         joystickContainer.style.display = 'block';
     }
@@ -517,26 +562,22 @@ function setupJoystick() {
     joystickCenterY = rect.top + rect.height / 2;
     joystickRadius = rect.width / 2;
 }
-
 function handleTouchStart(e) {
     e.preventDefault();
     if (gameState !== 'playing') return;
-
     for (const touch of e.changedTouches) {
         const dist = Math.hypot(touch.clientX - joystickCenterX, touch.clientY - joystickCenterY);
-        if (dist <= joystickRadius * 2) { // Área de ativação um pouco maior
+        if (dist <= joystickRadius * 2) {
             joystickActive = true;
             joystickTouchId = touch.identifier;
             updateJoystickHandle(touch.clientX, touch.clientY);
-            break; // Processa apenas o primeiro toque na área
+            break;
         }
     }
 }
-
 function handleTouchMove(e) {
     e.preventDefault();
     if (!joystickActive || gameState !== 'playing') return;
-
     for (const touch of e.changedTouches) {
         if (touch.identifier === joystickTouchId) {
             updateJoystickHandle(touch.clientX, touch.clientY);
@@ -544,11 +585,9 @@ function handleTouchMove(e) {
         }
     }
 }
-
 function handleTouchEnd(e) {
     e.preventDefault();
     if (!joystickActive) return;
-
     for (const touch of e.changedTouches) {
         if (touch.identifier === joystickTouchId) {
             joystickActive = false;
@@ -559,27 +598,25 @@ function handleTouchEnd(e) {
         }
     }
 }
-
 function updateJoystickHandle(x, y) {
     const dx = x - joystickCenterX;
     const dy = y - joystickCenterY;
     const dist = Math.hypot(dx, dy);
-    
-    // Normaliza o vetor de movimento
     joystickVector.x = dx / dist;
     joystickVector.y = dy / dist;
-
-    // Limita o movimento visual do pino
     const clampedDist = Math.min(dist, joystickRadius);
     const handleX = joystickVector.x * clampedDist;
     const handleY = joystickVector.y * clampedDist;
-
     joystickHandle.style.transform = `translate(calc(-50% + ${handleX}px), calc(-50% + ${handleY}px))`;
 }
 
-
 // --- Main Game Loop ---
 function gameLoop(currentTime) {
+    if (gameState === 'start') {
+        // Pausa o loop até o jogo começar
+        return;
+    }
+    
     if (gameState === 'gameOver' || gameState === 'levelUp' || gameState === 'paused') {
         if (gameState === 'paused') { updateUI(); requestAnimationFrame(gameLoop); }
         else if (gameState === 'levelUp') {
@@ -614,13 +651,21 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => { keysPressed[e.key.toLowerCase()] = false; });
 window.addEventListener('resize', resizeCanvas);
 
-// Eventos de toque para o joystick
 window.addEventListener('touchstart', handleTouchStart, { passive: false });
 window.addEventListener('touchmove', handleTouchMove, { passive: false });
 window.addEventListener('touchend', handleTouchEnd, { passive: false });
 window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
+
 // --- Start Game ---
-initGame();
-lastTime = performance.now();
+// NOVO: Lógica de inicialização baseada no clique do botão
+startButton.addEventListener('click', () => {
+    startScreen.classList.add('hidden'); // Esconde a tela de início
+    enterFullscreen(); // Tenta entrar em tela cheia
+    restartGame(); // Inicia o jogo pela primeira vez
+});
+
+restartButton.addEventListener('click', restartGame);
+
+// Inicia o loop de jogo, mas ele ficará em estado 'start' até o clique
 requestAnimationFrame(gameLoop);
