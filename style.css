@@ -68,6 +68,9 @@ canvas {
     position: absolute;
     top: 10px;
     left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     padding: 10px;
     background-color: rgba(0, 0, 0, 0.6); /* Um pouco mais de opacidade para legibilidade */
     border-radius: 8px;
@@ -233,7 +236,7 @@ canvas {
     font-size: 1.5em;
 }
 
-@media (max-width: 767px) and (orientation: landscape) {
+@media (max-width: 991px) and (orientation: landscape) {
     #ui-container{
         min-width: unset;
         max-width: 150px;
