@@ -76,12 +76,17 @@ canvas {
     min-width: 220px; /* Para acomodar as barras e texto */
 }
 
+#bars-containers {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 #hp-bar-container, #xp-bar-container {
-    width: 200px;
+    width: 100%;
     height: 20px;
     background-color: #555;
     border-radius: 5px;
-    margin-bottom: 8px; /* Espaçamento entre barras e texto */
     position: relative;
 }
 
@@ -111,8 +116,13 @@ canvas {
     text-shadow: 1px 1px 1px black;
 }
 
+#markers-container{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 #level-text, #timer-text, #score-text {
-    margin-top: 5px;
     font-weight: bold;
 }
 
@@ -221,6 +231,23 @@ canvas {
     align-items: center;
     text-align: center;
     font-size: 1.5em;
+}
+
+@media (max-width: 767px) and (orientation: landscape) {
+    #ui-container{
+        min-width: unset;
+        max-width: 150px;
+        width: 100%;   
+    }
+    
+    #hp-bar-container, #xp-bar-container {
+        height: 15px;
+    }
+
+    #markers-container{
+        gap: 5px;
+        font-size: 12px;
+    }
 }
 
 /* Media Query para mostrar a tela de rotação em modo retrato */
