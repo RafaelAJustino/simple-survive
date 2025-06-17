@@ -6,6 +6,51 @@ body {
     color: white;
 }
 
+/* NOVO: Estilos para a tela de início */
+#start-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    z-index: 10000;
+}
+
+#start-screen h1 {
+    font-size: 3em;
+    color: #008B8B;
+    margin-bottom: 10px;
+}
+
+#start-screen p {
+    font-size: 1.2em;
+    margin-bottom: 40px;
+}
+
+#start-button {
+    padding: 15px 30px;
+    font-size: 1.5em;
+    color: white;
+    background-color: #3a753c;
+    border: 2px solid #5aa05f;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+}
+
+#start-button:hover {
+    background-color: #4CAF50;
+    transform: scale(1.05);
+}
+
+/* --- Fim dos novos estilos --- */
+
 #game-container {
     position: relative; /* Ponto de referência para elementos posicionados absolutamente */
     width: 100vw;       /* Ocupa toda a largura da viewport */
@@ -183,7 +228,7 @@ canvas {
     #rotate-device-screen {
         display: flex;
     }
-    #game-container {
+    #game-container, #start-screen {
         display: none;
     }
 }
