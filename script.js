@@ -5,7 +5,7 @@ const ctx = canvas.getContext('2d');
 const gameContainer = document.getElementById('game-container');
 const startScreen = document.getElementById('start-screen');
 const startButton = document.getElementById('start-button');
-const restartButton = document.getElementById('restart-button'); // ALTERADO
+const restartButton = document.getElementById('restart-button');
 const hpBar = document.getElementById('hp-bar');
 const hpText = document.getElementById('hp-text');
 const xpBar = document.getElementById('xp-bar');
@@ -31,12 +31,11 @@ let joystickVector = { x: 0, y: 0 };
 let joystickTouchId = null;
 let joystickCenterX, joystickCenterY, joystickRadius;
 
-// --- NOVO: Variáveis para escala e constantes do jogo ---
+// --- Variáveis para escala e constantes do jogo ---
 let TILE_SIZE; 
 let PLAYER_MAX_ATTACK_RANGE, ENEMY_RANGED_MAX_ATTACK_RANGE, ENEMY_RANGED_PREFERRED_DISTANCE,
     ENEMY_RANGED_DISTANCE_BUFFER, BOSS_RANGED_PREFERRED_DISTANCE, BOSS_RANGED_MAX_ATTACK_RANGE,
     BOSS_MELEE_DASH_DISTANCE;
-// --------------------------------------------------------
 
 let player;
 let enemies = [];
@@ -58,7 +57,7 @@ let camera = {
 
 const keysPressed = {};
 let gameTime = 0;
-let gameState = 'start'; // ALTERADO: Começa na tela de início
+let gameState = 'start';
 let lastTime = 0;
 let deltaTime = 0;
 let score = 0;
@@ -83,15 +82,9 @@ const BOSS_RANGED_ATTACK_INTERVAL = 1.5;
 const BOSS_RANGED_BURST_COOLDOWN = 5;
 const BOSS_RANGED_BURST_PROJECTILES = 20;
 
-// --- NOVO: Função para definir a escala do jogo ---
 function setGameScaleAndConstants() {
     const isMobile = 'ontouchstart' in window;
-
-    // Se for mobile, "dá zoom out" diminuindo o tamanho base do tile
-    // Você pode ajustar o valor 35 para mais ou para menos.
     TILE_SIZE = isMobile ? 35 : 50;
-
-    // As constantes que dependem do TILE_SIZE são agora calculadas aqui
     PLAYER_MAX_ATTACK_RANGE = 10 * TILE_SIZE;
     ENEMY_RANGED_MAX_ATTACK_RANGE = 7 * TILE_SIZE;
     ENEMY_RANGED_PREFERRED_DISTANCE = 5 * TILE_SIZE;
@@ -112,14 +105,13 @@ function createPlayer() {
         hpRegenRate: 2, hpRegenInterval: 3, hpRegenTimer: 0,
         isInvincible: false, invincibleTimer: 0, invincibleDuration: 0.2,
         xp: 0, level: 1, xpToNextLevel: 10,
-        pickupRadius: 1.5 * TILE_SIZE, // ALTERADO: usa a variável TILE_SIZE
+        pickupRadius: 1.5 * TILE_SIZE,
         projectilesPerShot: 1, projectilePenetration: 1,
         upgrades: { enemyDeathExplosion: false },
 
         update: function (dt) {
             let moveX = 0;
             let moveY = 0;
-
             if (joystickActive) {
                 moveX = joystickVector.x;
                 moveY = joystickVector.y;
@@ -129,13 +121,11 @@ function createPlayer() {
                 if (keysPressed['a'] || keysPressed['arrowleft']) moveX -= 1;
                 if (keysPressed['d'] || keysPressed['arrowright']) moveX += 1;
             }
-
             if (moveX !== 0 || moveY !== 0) {
                 const magnitude = Math.sqrt(moveX * moveX + moveY * moveY);
                 this.x += (moveX / magnitude) * this.speed * dt;
                 this.y += (moveY / magnitude) * this.speed * dt;
             }
-
             this.attackCooldown -= dt;
             if (this.attackCooldown <= 0) { this.shoot(); this.attackCooldown = this.attackSpeed; }
             this.hpRegenTimer += dt;
@@ -354,9 +344,6 @@ function createProjectile(x, y, angle, damage, penetration, owner, isBossProject
         }
     });
 }
-
-// (O restante das funções do jogo permanece o mesmo, apenas o init/restart e o loop principal são ajustados)
-// ...
 function createXPOrb(x, y, value) {
     xpOrbs.push({
         x: x, y: y, radius: 0.12 * TILE_SIZE, color: '#8A2BE2', value: value,
@@ -467,17 +454,31 @@ const allUpgrades = [
     { name: "Cura Total (Anjo)", apply: (p) => { p.hp = p.maxHp; }, unique: true, description: "Restaura toda a sua vida instantaneamente." }
 ];
 let playerChosenUniqueUpgrades = new Set();
+
 function showLevelUpOptions() {
     levelUpScreen.classList.remove('hidden'); upgradeOptionsContainer.innerHTML = '';
     let availableUpgrades = [...allUpgrades].filter(upg => !(upg.unique && playerChosenUniqueUpgrades.has(upg.name)));
     for (let i = availableUpgrades.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[availableUpgrades[i], availableUpgrades[j]] = [availableUpgrades[j], availableUpgrades[i]]; }
     const optionsToShow = Math.min(3, availableUpgrades.length);
     for (let i = 0; i < optionsToShow; i++) {
-        const upgrade = availableUpgrades[i]; const button = document.createElement('button'); button.textContent = upgrade.name;
+        const upgrade = availableUpgrades[i]; 
+        const button = document.createElement('button'); 
+        button.textContent = upgrade.name;
         if (upgrade.description) button.title = upgrade.description;
-        button.onclick = () => selectUpgrade(upgrade); upgradeOptionsContainer.appendChild(button);
+        
+        // --- ALTERAÇÃO AQUI ---
+        // Adiciona suporte para clique (desktop) e toque (mobile)
+        button.onclick = () => selectUpgrade(upgrade);
+        button.ontouchend = (e) => {
+            e.preventDefault(); // Impede que o navegador dispare um evento de 'click' fantasma logo após o toque.
+            selectUpgrade(upgrade);
+        };
+        // --- FIM DA ALTERAÇÃO ---
+
+        upgradeOptionsContainer.appendChild(button);
     }
 }
+
 function selectUpgrade(upgrade) {
     upgrade.apply(player); if (upgrade.unique) playerChosenUniqueUpgrades.add(upgrade.name);
     levelUpScreen.classList.add('hidden'); gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(gameLoop);
@@ -493,7 +494,7 @@ function drawBackground() {
     }
 }
 
-// --- Funções de Estado do Jogo (com adições do joystick) ---
+// --- Funções de Estado do Jogo ---
 function resizeCanvas() {
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     camera.width = canvas.width; camera.height = canvas.height; 
@@ -502,7 +503,7 @@ function resizeCanvas() {
 }
 
 function initGame() {
-    setGameScaleAndConstants(); // NOVO: Define a escala do jogo
+    setGameScaleAndConstants(); 
     resizeCanvas();
     player = createPlayer();
     camera.update();
@@ -515,7 +516,7 @@ function initGame() {
     gameState = 'playing';
     levelUpScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
-    gameContainer.classList.remove('hidden'); // Mostra o container do jogo
+    gameContainer.classList.remove('hidden');
     updateUI();
 }
 
@@ -538,11 +539,10 @@ function togglePause() {
     else if (gameState === 'paused') { gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(gameLoop); }
 }
 
-// --- NOVO: Função para entrar em tela cheia ---
 function enterFullscreen() {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
-        elem.requestFullscreen();
+        elem.requestFullscreen().catch(err => console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`));
     } else if (elem.mozRequestFullScreen) { /* Firefox */
         elem.mozRequestFullScreen();
     } else if (elem.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
@@ -567,7 +567,7 @@ function handleTouchStart(e) {
     if (gameState !== 'playing') return;
     for (const touch of e.changedTouches) {
         const dist = Math.hypot(touch.clientX - joystickCenterX, touch.clientY - joystickCenterY);
-        if (dist <= joystickRadius * 2) {
+        if (dist <= joystickRadius * 2.5) { // Aumentando um pouco a área de ativação
             joystickActive = true;
             joystickTouchId = touch.identifier;
             updateJoystickHandle(touch.clientX, touch.clientY);
@@ -602,6 +602,7 @@ function updateJoystickHandle(x, y) {
     const dx = x - joystickCenterX;
     const dy = y - joystickCenterY;
     const dist = Math.hypot(dx, dy);
+    if (dist === 0) return; // Evita divisão por zero
     joystickVector.x = dx / dist;
     joystickVector.y = dy / dist;
     const clampedDist = Math.min(dist, joystickRadius);
@@ -613,17 +614,18 @@ function updateJoystickHandle(x, y) {
 // --- Main Game Loop ---
 function gameLoop(currentTime) {
     if (gameState === 'start') {
-        // Pausa o loop até o jogo começar
+        requestAnimationFrame(gameLoop);
         return;
     }
     
     if (gameState === 'gameOver' || gameState === 'levelUp' || gameState === 'paused') {
-        if (gameState === 'paused') { updateUI(); requestAnimationFrame(gameLoop); }
+        if (gameState === 'paused') { updateUI(); }
         else if (gameState === 'levelUp') {
             ctx.clearRect(0, 0, canvas.width, canvas.height); drawBackground();
             xpOrbs.forEach(orb => orb.draw()); enemies.forEach(e => e.draw());
             player.draw(); projectiles.forEach(p => p.draw()); updateUI();
         }
+        requestAnimationFrame(gameLoop);
         return;
     }
     deltaTime = (currentTime - lastTime) / 1000; lastTime = currentTime;
@@ -658,14 +660,15 @@ window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
 
 // --- Start Game ---
-// NOVO: Lógica de inicialização baseada no clique do botão
 startButton.addEventListener('click', () => {
-    startScreen.classList.add('hidden'); // Esconde a tela de início
-    enterFullscreen(); // Tenta entrar em tela cheia
-    restartGame(); // Inicia o jogo pela primeira vez
+    startScreen.classList.add('hidden');
+    if ('ontouchstart' in window) { // Só tenta tela cheia em mobile
+        enterFullscreen();
+    }
+    restartGame();
 });
 
 restartButton.addEventListener('click', restartGame);
 
-// Inicia o loop de jogo, mas ele ficará em estado 'start' até o clique
+lastTime = performance.now();
 requestAnimationFrame(gameLoop);
