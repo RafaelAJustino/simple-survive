@@ -2,13 +2,21 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Simple Survive</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
+        
+        <!-- Elementos do Joystick -->
+        <div id="joystick-container">
+            <div id="joystick-base">
+                <div id="joystick-handle"></div>
+            </div>
+        </div>
+
         <div id="ui-container">
             <div id="hp-bar-container">
                 <div id="hp-bar"></div>
@@ -37,6 +45,12 @@
             <button onclick="restartGame()">Jogar Novamente</button>
         </div>
     </div>
+
+    <!-- Tela para forçar modo paisagem -->
+    <div id="rotate-device-screen">
+        <p>Por favor, vire seu dispositivo para jogar.</p>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
