@@ -1,0 +1,132 @@
+body {
+    margin: 0;
+    overflow: hidden; /* Evita barras de rolagem */
+    background-color: #222; /* Cor de fundo geral caso algo não cubra */
+    font-family: Arial, sans-serif;
+    color: white;
+}
+
+#game-container {
+    position: relative; /* Ponto de referência para elementos posicionados absolutamente */
+    width: 100vw;       /* Ocupa toda a largura da viewport */
+    height: 100vh;      /* Ocupa toda a altura da viewport */
+}
+
+canvas {
+    display: block; /* Remove qualquer espaço extra abaixo do canvas */
+    width: 100%;    /* Faz o elemento canvas preencher o game-container */
+    height: 100%;   /* Faz o elemento canvas preencher o game-container */
+    /* A cor de fundo do canvas é gerenciada pelo desenho do mapa xadrez */
+}
+
+#ui-container {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.6); /* Um pouco mais de opacidade para legibilidade */
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 5; /* Garante que está sobre o canvas, mas abaixo dos pop-ups */
+    min-width: 220px; /* Para acomodar as barras e texto */
+}
+
+#hp-bar-container, #xp-bar-container {
+    width: 200px;
+    height: 20px;
+    background-color: #555;
+    border-radius: 5px;
+    margin-bottom: 8px; /* Espaçamento entre barras e texto */
+    position: relative;
+}
+
+#hp-bar {
+    width: 100%;
+    height: 100%;
+    background-color: red;
+    border-radius: 5px;
+    transition: width 0.2s ease-out; /* Suaviza a mudança da barra */
+}
+
+#xp-bar {
+    width: 0%;
+    height: 100%;
+    background-color: purple;
+    border-radius: 5px;
+    transition: width 0.2s ease-out; /* Suaviza a mudança da barra */
+}
+
+#hp-text, #xp-text {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    color: white;
+    text-shadow: 1px 1px 1px black;
+}
+
+#level-text, #timer-text, #score-text {
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#level-up-screen, #game-over-screen {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(20, 20, 20, 0.95); /* Mais opaco */
+    padding: 30px;
+    border: 2px solid #777;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 10; /* Garante que está sobre todos os outros elementos */
+    width: 80%;
+    max-width: 450px; /* Um pouco maior para as opções */
+    box-shadow: 0 0 20px rgba(0,0,0,0.5); /* Sombra para destaque */
+}
+
+#level-up-screen h2, #game-over-screen h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #FFD700; /* Dourado para o título */
+}
+
+#upgrade-options button {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    background-color: #3a753c; /* Verde mais escuro */
+    color: white;
+    border: 1px solid #5aa05f;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s;
+}
+
+#upgrade-options button:hover {
+    background-color: #4CAF50; /* Verde mais claro no hover */
+}
+
+#game-over-screen button {
+    padding: 12px 25px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-top: 20px;
+    transition: background-color 0.2s;
+}
+
+#game-over-screen button:hover {
+    background-color: #0056b3;
+}
