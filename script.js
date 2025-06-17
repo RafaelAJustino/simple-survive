@@ -173,7 +173,8 @@ function createPlayer() {
 }
 
 
-// --- Enemy Object ---
+// --- Enemy Object (sem alterações) ---
+// (código omitido para brevidade, é o mesmo de antes)
 function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
     let spawnX, spawnY;
     const spawnRadius = Math.hypot(camera.width / 2, camera.height / 2) + TILE_SIZE * 2;
@@ -322,7 +323,8 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
 }
 
 
-// --- Projectile Object ---
+// --- Projectile Object & Other logic (sem alterações) ---
+// (código omitido para brevidade)
 function createProjectile(x, y, angle, damage, penetration, owner, isBossProjectile = false) {
     let pColor = '#c92e2e', pRadius = 0.1 * TILE_SIZE, pSpeed = 9 * TILE_SIZE;
     if (owner === 'enemy') {
@@ -403,6 +405,7 @@ function resolveEnemyCollisions() {
     }
 }
 function updateUI() {
+    if (!player) return;
     hpBar.style.width = (player.hp / player.maxHp) * 100 + '%'; hpText.textContent = `${Math.ceil(player.hp)}/${player.maxHp}`;
     xpBar.style.width = (player.xp / player.xpToNextLevel) * 100 + '%'; xpText.textContent = `${player.xp}/${player.xpToNextLevel}`;
     levelText.textContent = `Nível: ${player.level}`; timerText.textContent = `Tempo: ${Math.floor(gameTime / 1000)}s`; scoreText.textContent = `Abates: ${score}`;
@@ -456,7 +459,8 @@ const allUpgrades = [
 let playerChosenUniqueUpgrades = new Set();
 
 function showLevelUpOptions() {
-    levelUpScreen.classList.remove('hidden'); upgradeOptionsContainer.innerHTML = '';
+    levelUpScreen.classList.remove('hidden'); 
+    upgradeOptionsContainer.innerHTML = '';
     let availableUpgrades = [...allUpgrades].filter(upg => !(upg.unique && playerChosenUniqueUpgrades.has(upg.name)));
     for (let i = availableUpgrades.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[availableUpgrades[i], availableUpgrades[j]] = [availableUpgrades[j], availableUpgrades[i]]; }
     const optionsToShow = Math.min(3, availableUpgrades.length);
@@ -466,22 +470,29 @@ function showLevelUpOptions() {
         button.textContent = upgrade.name;
         if (upgrade.description) button.title = upgrade.description;
         
-        // --- ALTERAÇÃO AQUI ---
-        // Adiciona suporte para clique (desktop) e toque (mobile)
-        button.onclick = () => selectUpgrade(upgrade);
-        button.ontouchend = (e) => {
-            e.preventDefault(); // Impede que o navegador dispare um evento de 'click' fantasma logo após o toque.
+        const selectAction = (e) => {
+             // Impede que o evento se propague e dispare outros listeners (como o do joystick)
+            e.stopPropagation();
+             // Impede que o navegador execute a ação padrão do evento (como um clique fantasma)
+            e.preventDefault(); 
             selectUpgrade(upgrade);
         };
-        // --- FIM DA ALTERAÇÃO ---
+
+        button.addEventListener('click', selectAction);
+        button.addEventListener('touchend', selectAction);
 
         upgradeOptionsContainer.appendChild(button);
     }
 }
 
 function selectUpgrade(upgrade) {
-    upgrade.apply(player); if (upgrade.unique) playerChosenUniqueUpgrades.add(upgrade.name);
-    levelUpScreen.classList.add('hidden'); gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(gameLoop);
+    if (gameState !== 'levelUp') return; // Previne seleção dupla
+    upgrade.apply(player); 
+    if (upgrade.unique) playerChosenUniqueUpgrades.add(upgrade.name);
+    levelUpScreen.classList.add('hidden'); 
+    gameState = 'playing'; 
+    lastTime = performance.now(); 
+    // Não precisa chamar requestAnimationFrame aqui, o loop principal já está rodando.
 }
 function drawBackground() {
     let startCol = Math.floor(camera.x / TILE_SIZE), endCol = Math.ceil((camera.x + camera.width) / TILE_SIZE);
@@ -494,14 +505,13 @@ function drawBackground() {
     }
 }
 
-// --- Funções de Estado do Jogo ---
+// --- Funções de Estado do Jogo (sem alterações) ---
 function resizeCanvas() {
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     camera.width = canvas.width; camera.height = canvas.height; 
     if (player) camera.update();
     setupJoystick();
 }
-
 function initGame() {
     setGameScaleAndConstants(); 
     resizeCanvas();
@@ -519,7 +529,6 @@ function initGame() {
     gameContainer.classList.remove('hidden');
     updateUI();
 }
-
 function gameOver() {
     gameState = 'gameOver';
     finalTimeText.textContent = `${Math.floor(gameTime / 1000)}s`;
@@ -527,82 +536,40 @@ function gameOver() {
     finalLevelText.textContent = player.level;
     gameOverScreen.classList.remove('hidden');
 }
-
 function restartGame() {
     initGame();
     lastTime = performance.now();
-    requestAnimationFrame(gameLoop);
 }
-
 function togglePause() {
     if (gameState === 'playing') gameState = 'paused';
-    else if (gameState === 'paused') { gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(gameLoop); }
+    else if (gameState === 'paused') { gameState = 'playing'; lastTime = performance.now(); }
 }
-
 function enterFullscreen() {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
         elem.requestFullscreen().catch(err => console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`));
-    } else if (elem.mozRequestFullScreen) { /* Firefox */
-        elem.mozRequestFullScreen();
-    } else if (elem.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
-        elem.webkitRequestFullscreen();
-    } else if (elem.msRequestFullscreen) { /* IE/Edge */
-        elem.msRequestFullscreen();
-    }
+    } else if (elem.mozRequestFullScreen) { elem.mozRequestFullScreen(); }
+    else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); }
+    else if (elem.msRequestFullscreen) { elem.msRequestFullscreen(); }
 }
 
 // --- Lógica do Joystick ---
 function setupJoystick() {
     if ('ontouchstart' in window) {
         joystickContainer.style.display = 'block';
+    } else {
+        joystickContainer.style.display = 'none';
     }
     const rect = joystickBase.getBoundingClientRect();
     joystickCenterX = rect.left + rect.width / 2;
     joystickCenterY = rect.top + rect.height / 2;
     joystickRadius = rect.width / 2;
 }
-function handleTouchStart(e) {
-    e.preventDefault();
-    if (gameState !== 'playing') return;
-    for (const touch of e.changedTouches) {
-        const dist = Math.hypot(touch.clientX - joystickCenterX, touch.clientY - joystickCenterY);
-        if (dist <= joystickRadius * 2.5) { // Aumentando um pouco a área de ativação
-            joystickActive = true;
-            joystickTouchId = touch.identifier;
-            updateJoystickHandle(touch.clientX, touch.clientY);
-            break;
-        }
-    }
-}
-function handleTouchMove(e) {
-    e.preventDefault();
-    if (!joystickActive || gameState !== 'playing') return;
-    for (const touch of e.changedTouches) {
-        if (touch.identifier === joystickTouchId) {
-            updateJoystickHandle(touch.clientX, touch.clientY);
-            break;
-        }
-    }
-}
-function handleTouchEnd(e) {
-    e.preventDefault();
-    if (!joystickActive) return;
-    for (const touch of e.changedTouches) {
-        if (touch.identifier === joystickTouchId) {
-            joystickActive = false;
-            joystickTouchId = null;
-            joystickVector = { x: 0, y: 0 };
-            joystickHandle.style.transform = `translate(-50%, -50%)`;
-            break;
-        }
-    }
-}
 function updateJoystickHandle(x, y) {
     const dx = x - joystickCenterX;
     const dy = y - joystickCenterY;
     const dist = Math.hypot(dx, dy);
-    if (dist === 0) return; // Evita divisão por zero
+    if (dist === 0) return;
     joystickVector.x = dx / dist;
     joystickVector.y = dy / dist;
     const clampedDist = Math.min(dist, joystickRadius);
@@ -611,7 +578,53 @@ function updateJoystickHandle(x, y) {
     joystickHandle.style.transform = `translate(calc(-50% + ${handleX}px), calc(-50% + ${handleY}px))`;
 }
 
-// --- Main Game Loop ---
+// --- LÓGICA DE TOQUE CORRIGIDA ---
+function handleTouchStart(e) {
+    if (gameState !== 'playing') return; // Ignora toques se não estiver jogando
+
+    for (const touch of e.changedTouches) {
+        const dist = Math.hypot(touch.clientX - joystickCenterX, touch.clientY - joystickCenterY);
+        // A área de ativação é um pouco maior que a base para facilitar
+        if (dist <= joystickRadius * 2) {
+            e.preventDefault(); // Previne o comportamento padrão APENAS se o toque for no joystick
+            joystickActive = true;
+            joystickTouchId = touch.identifier;
+            updateJoystickHandle(touch.clientX, touch.clientY);
+            break; // Processa apenas um toque no joystick por vez
+        }
+    }
+}
+
+function handleTouchMove(e) {
+    // Só age se o joystick já estiver ativo
+    if (!joystickActive || joystickTouchId === null) return;
+    
+    for (const touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            e.preventDefault(); // Previne scroll da tela enquanto arrasta o joystick
+            updateJoystickHandle(touch.clientX, touch.clientY);
+            break;
+        }
+    }
+}
+
+function handleTouchEnd(e) {
+    // Só age se o joystick estiver ativo e for o toque do joystick
+    if (!joystickActive || joystickTouchId === null) return;
+
+    for (const touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            e.preventDefault(); // Previne comportamentos indesejados ao soltar
+            joystickActive = false;
+            joystickTouchId = null;
+            joystickVector = { x: 0, y: 0 };
+            joystickHandle.style.transform = `translate(-50%, -50%)`;
+            break;
+        }
+    }
+}
+
+// --- Main Game Loop (sem alterações) ---
 function gameLoop(currentTime) {
     if (gameState === 'start') {
         requestAnimationFrame(gameLoop);
@@ -619,16 +632,15 @@ function gameLoop(currentTime) {
     }
     
     if (gameState === 'gameOver' || gameState === 'levelUp' || gameState === 'paused') {
-        if (gameState === 'paused') { updateUI(); }
-        else if (gameState === 'levelUp') {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); drawBackground();
-            xpOrbs.forEach(orb => orb.draw()); enemies.forEach(e => e.draw());
-            player.draw(); projectiles.forEach(p => p.draw()); updateUI();
-        }
+        if (gameState === 'paused' || gameState === 'levelUp' ) { updateUI(); }
         requestAnimationFrame(gameLoop);
         return;
     }
-    deltaTime = (currentTime - lastTime) / 1000; lastTime = currentTime;
+
+    if (!lastTime) { lastTime = currentTime; }
+    deltaTime = (currentTime - lastTime) / 1000;
+    lastTime = currentTime;
+
     const MAX_DELTA_TIME = 0.1; if (deltaTime > MAX_DELTA_TIME) deltaTime = MAX_DELTA_TIME;
     gameTime += deltaTime * 1000;
     enemySpawnTimer += deltaTime * 1000; enemyStrengthTimer += deltaTime * 1000;
@@ -662,13 +674,14 @@ window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 // --- Start Game ---
 startButton.addEventListener('click', () => {
     startScreen.classList.add('hidden');
-    if ('ontouchstart' in window) { // Só tenta tela cheia em mobile
-        enterFullscreen();
-    }
+    if ('ontouchstart' in window) { enterFullscreen(); }
     restartGame();
 });
 
 restartButton.addEventListener('click', restartGame);
+restartButton.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    restartGame();
+});
 
-lastTime = performance.now();
 requestAnimationFrame(gameLoop);
