@@ -1,7 +1,7 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// UI Elements
+// --- Elementos de UI e Jogo ---
 const hpBar = document.getElementById('hp-bar');
 const hpText = document.getElementById('hp-text');
 const xpBar = document.getElementById('xp-bar');
@@ -15,6 +15,17 @@ const gameOverScreen = document.getElementById('game-over-screen');
 const finalTimeText = document.getElementById('final-time');
 const finalScoreText = document.getElementById('final-score');
 const finalLevelText = document.getElementById('final-level');
+
+// --- Elementos do Joystick ---
+const joystickContainer = document.getElementById('joystick-container');
+const joystickBase = document.getElementById('joystick-base');
+const joystickHandle = document.getElementById('joystick-handle');
+
+// --- Variáveis do Joystick ---
+let joystickActive = false;
+let joystickVector = { x: 0, y: 0 };
+let joystickTouchId = null;
+let joystickCenterX, joystickCenterY, joystickRadius;
 
 // Game settings
 let player;
@@ -48,17 +59,10 @@ const MIN_SPAWN_INTERVAL = 500;
 let enemyStrengthTimer = 0;
 const enemyStrengthInterval = 20000;
 
-// CORES AJUSTADAS
 const TILE_COLOR_1 = '#555555';
 const TILE_COLOR_2 = '#6b6b6b';
 
-let enemyBaseStats = {
-    hp: 10,
-    damage: 5,
-    rangedDamage: 7,
-    colorLevel: 0,
-    xpBonus: 0
-};
+let enemyBaseStats = { hp: 10, damage: 5, rangedDamage: 7, colorLevel: 0, xpBonus: 0 };
 const ENEMY_COLORS = ['#B22222', '#DAA520', '#c93466', '#289bb8', '#4B0082'];
 const BOSS_COLOR_MELEE = '#8B0000';
 const BOSS_COLOR_RANGED = '#00008B';
@@ -71,11 +75,10 @@ const ENEMY_RANGED_MAX_ATTACK_RANGE = 7 * TILE_SIZE;
 const ENEMY_RANGED_PREFERRED_DISTANCE = 5 * TILE_SIZE;
 const ENEMY_RANGED_DISTANCE_BUFFER = 1 * TILE_SIZE;
 
-// MODIFICADO: Ajuste das constantes do Boss Ranged
 const BOSS_RANGED_PREFERRED_DISTANCE = 10 * TILE_SIZE;
 const BOSS_RANGED_MAX_ATTACK_RANGE = 20 * TILE_SIZE;
-const BOSS_RANGED_ATTACK_INTERVAL = 1.5; // s
-const BOSS_RANGED_BURST_COOLDOWN = 5; // s
+const BOSS_RANGED_ATTACK_INTERVAL = 1.5;
+const BOSS_RANGED_BURST_COOLDOWN = 5;
 const BOSS_RANGED_BURST_PROJECTILES = 20;
 const BOSS_MELEE_DASH_DISTANCE = 10 * TILE_SIZE;
 
@@ -94,17 +97,27 @@ function createPlayer() {
         upgrades: { enemyDeathExplosion: false },
 
         update: function (dt) {
-            let moveX = 0, moveY = 0;
-            if (keysPressed['w'] || keysPressed['arrowup']) moveY -= 1;
-            if (keysPressed['s'] || keysPressed['arrowdown']) moveY += 1;
-            if (keysPressed['a'] || keysPressed['arrowleft']) moveX -= 1;
-            if (keysPressed['d'] || keysPressed['arrowright']) moveX += 1;
+            let moveX = 0;
+            let moveY = 0;
+
+            // --- Lógica de Movimento: Prioriza Joystick, depois Teclado ---
+            if (joystickActive) {
+                moveX = joystickVector.x;
+                moveY = joystickVector.y;
+            } else {
+                if (keysPressed['w'] || keysPressed['arrowup']) moveY -= 1;
+                if (keysPressed['s'] || keysPressed['arrowdown']) moveY += 1;
+                if (keysPressed['a'] || keysPressed['arrowleft']) moveX -= 1;
+                if (keysPressed['d'] || keysPressed['arrowright']) moveX += 1;
+            }
 
             if (moveX !== 0 || moveY !== 0) {
                 const magnitude = Math.sqrt(moveX * moveX + moveY * moveY);
                 this.x += (moveX / magnitude) * this.speed * dt;
                 this.y += (moveY / magnitude) * this.speed * dt;
             }
+
+            // Lógica de ataque e regeneração (inalterada)
             this.attackCooldown -= dt;
             if (this.attackCooldown <= 0) { this.shoot(); this.attackCooldown = this.attackSpeed; }
             this.hpRegenTimer += dt;
@@ -151,7 +164,8 @@ function createPlayer() {
     };
 }
 
-// --- Enemy Object ---
+
+// --- Enemy Object (lógica inalterada) ---
 function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
     let spawnX, spawnY;
     const spawnRadius = Math.hypot(camera.width / 2, camera.height / 2) + TILE_SIZE * 2;
@@ -202,28 +216,19 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
 
             if (this.type === 'ranged') {
                 const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
-
-                // --- MODIFICADO: Lógica de perseguição e posicionamento ---
-                // Se estiver muito perto, afaste-se (kiting).
                 if (distToPlayer < ENEMY_RANGED_PREFERRED_DISTANCE - ENEMY_RANGED_DISTANCE_BUFFER) {
                     moveX *= -1;
                     moveY *= -1;
                 }
-                // Se estiver na distância ideal, pare de se mover para atirar com mais precisão.
                 else if (distToPlayer <= ENEMY_RANGED_PREFERRED_DISTANCE + ENEMY_RANGED_DISTANCE_BUFFER) {
                     intendedSpeed = 0;
                 }
-                // Se estiver longe (qualquer distância maior que a ideal), aproxime-se.
-                // Não precisa de 'else', pois a aproximação já é o comportamento padrão.
-
                 this.rangedAttackTimer -= dt;
-                // Atira se o cooldown zerou E se o jogador está dentro do alcance máximo de tiro.
                 if (this.rangedAttackTimer <= 0 && distToPlayer <= ENEMY_RANGED_MAX_ATTACK_RANGE) {
                     createProjectile(this.x, this.y, angleToPlayer, this.damage, 1, 'enemy');
                     this.rangedAttackTimer = this.rangedAttackInterval;
                 }
             }
-            // Aplica o movimento
             this.x += moveX * intendedSpeed * dt;
             this.y += moveY * intendedSpeed * dt;
         },
@@ -247,29 +252,23 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
             const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
             let moveX = Math.cos(angleToPlayer), moveY = Math.sin(angleToPlayer), intendedSpeed = this.speed;
 
-            // --- MODIFICADO: Lógica de perseguição e posicionamento do Boss ---
-            // Se estiver muito perto, afaste-se.
             if (distToPlayer < BOSS_RANGED_PREFERRED_DISTANCE - ENEMY_RANGED_DISTANCE_BUFFER) {
                 moveX *= -1;
                 moveY *= -1;
             }
-            // Se estiver na distância ideal, pare de se mover.
             else if (distToPlayer <= BOSS_RANGED_PREFERRED_DISTANCE + ENEMY_RANGED_DISTANCE_BUFFER) {
                 intendedSpeed = 0;
             }
-            // Se estiver longe, aproxime-se (comportamento padrão).
 
             this.x += moveX * intendedSpeed * dt;
             this.y += moveY * intendedSpeed * dt;
             
-            // Ataque normal (cone)
             this.rangedAttackTimer -= dt;
             if (this.rangedAttackTimer <= 0 && distToPlayer <= BOSS_RANGED_MAX_ATTACK_RANGE) {
                 const coneSpread = Math.PI / 12;
                 for (let i = -1; i <= 1; i++) createProjectile(this.x, this.y, angleToPlayer + (i * coneSpread), this.damage, 1, 'enemy', true);
                 this.rangedAttackTimer = BOSS_RANGED_ATTACK_INTERVAL;
             }
-            // Ataque em rajada (burst)
             this.burstAttackTimer -= dt;
             if (this.burstAttackTimer <= 0 && distToPlayer <= BOSS_RANGED_MAX_ATTACK_RANGE) {
                 for (let i = 0; i < BOSS_RANGED_BURST_PROJECTILES; i++) {
@@ -314,20 +313,20 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
     enemies.push(enemy);
 }
 
-// --- Projectile Object ---
+
+// --- Projectile Object (lógica inalterada) ---
 function createProjectile(x, y, angle, damage, penetration, owner, isBossProjectile = false) {
     let pColor = '#c92e2e', pRadius = 0.1 * TILE_SIZE, pSpeed = 9 * TILE_SIZE;
     if (owner === 'enemy') {
         pColor = isBossProjectile ? '#FF6347' : '#CD5C5C'; pRadius = (isBossProjectile ? 0.2 : 0.12) * TILE_SIZE; pSpeed = (isBossProjectile ? 7 : 6) * TILE_SIZE;
     } else if (owner === 'enemy_explosion') { pColor = '#d2b41e'; pRadius = 0.11 * TILE_SIZE; pSpeed = 5 * TILE_SIZE; }
     
-    // MODIFICADO: A vida útil do projétil do boss agora usa o novo alcance máximo
     let lifeTimeRange = (owner === 'player') ? PLAYER_MAX_ATTACK_RANGE : (isBossProjectile ? BOSS_RANGED_MAX_ATTACK_RANGE : ENEMY_RANGED_MAX_ATTACK_RANGE);
 
     projectiles.push({
         x: x, y: y, radius: pRadius, color: pColor, speed: pSpeed, dx: Math.cos(angle), dy: Math.sin(angle),
         damage: damage, penetrationLeft: penetration, owner: owner, hitTargets: [],
-        lifeTime: lifeTimeRange / (pSpeed * 0.95), // Calcula a duração baseada no alcance
+        lifeTime: lifeTimeRange / (pSpeed * 0.95),
         update: function (dt) { this.x += this.dx * this.speed * dt; this.y += this.dy * this.speed * dt; this.lifeTime -= dt; },
         draw: function () {
             ctx.fillStyle = this.color; ctx.beginPath();
@@ -338,15 +337,14 @@ function createProjectile(x, y, angle, damage, penetration, owner, isBossProject
     });
 }
 
-// --- XP Orb Object ---
+// --- Restante das funções de lógica do jogo (inalteradas ou com poucas mudanças) ---
+// ... (copie o restante do seu script.js original a partir daqui)
 function createXPOrb(x, y, value) {
     xpOrbs.push({
         x: x, y: y, radius: 0.12 * TILE_SIZE, color: '#8A2BE2', value: value,
         draw: function () { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, Math.PI * 2); ctx.fill(); }
     });
 }
-
-// --- Game Logic Functions ---
 function findNearestEnemy(x, y, maxRange = Infinity) {
     let nearest = null, nearestDist = maxRange;
     enemies.forEach(enemy => { const dist = Math.hypot(enemy.x - x, enemy.y - y); if (dist < nearestDist) { nearest = enemy; nearestDist = dist; } });
@@ -409,7 +407,6 @@ function updateUI() {
         ctx.font = "24px Arial"; ctx.fillText("Pressione ESPAÇO para continuar", canvas.width / 2, canvas.height / 2 + 50); ctx.restore();
     }
 }
-
 function spawnEnemies() {
     if (strengthWaveCount > 0 && strengthWaveCount % 5 === 0 && !bossSpawnedForCurrentBossWave && !bossActive) {
         const bossType = Math.random() < 0.5 ? 'melee' : 'ranged';
@@ -419,7 +416,6 @@ function spawnEnemies() {
         return;
     }
     if (bossActive) return;
-
     if (enemySpawnTimer >= enemySpawnInterval) {
         const baseSpawnCount = 1 + Math.floor(gameTime / 20000);
         const spawnCountVariance = Math.floor(baseSpawnCount * 0.5);
@@ -428,7 +424,6 @@ function spawnEnemies() {
         enemySpawnTimer = 0;
     }
 }
-
 function scaleEnemies() {
     if (enemyStrengthTimer >= enemyStrengthInterval) {
         strengthWaveCount++;
@@ -438,20 +433,11 @@ function scaleEnemies() {
         enemyBaseStats.colorLevel++;
         enemyBaseStats.xpBonus += 1;
         enemyStrengthTimer = 0;
-
-        if (enemySpawnInterval > MIN_SPAWN_INTERVAL) {
-            enemySpawnInterval -= 100;
-        }
-
+        if (enemySpawnInterval > MIN_SPAWN_INTERVAL) { enemySpawnInterval -= 100; }
         console.log(`Enemies stronger! Wave: ${strengthWaveCount}, HP: ${enemyBaseStats.hp}, New Spawn Interval: ${enemySpawnInterval}ms`);
-
-        if (strengthWaveCount % 5 === 0) {
-            bossSpawnedForCurrentBossWave = false;
-        }
+        if (strengthWaveCount % 5 === 0) { bossSpawnedForCurrentBossWave = false; }
     }
 }
-
-// --- Upgrade System ---
 const allUpgrades = [
     { name: "+10% Dano", apply: (p) => p.damage = parseFloat((p.damage * 1.1).toFixed(2)) },
     { name: "+5% Vel. Movimento", apply: (p) => p.speed *= 1.05 },
@@ -480,8 +466,6 @@ function selectUpgrade(upgrade) {
     upgrade.apply(player); if (upgrade.unique) playerChosenUniqueUpgrades.add(upgrade.name);
     levelUpScreen.classList.add('hidden'); gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(gameLoop);
 }
-
-// --- Background Drawing ---
 function drawBackground() {
     let startCol = Math.floor(camera.x / TILE_SIZE), endCol = Math.ceil((camera.x + camera.width) / TILE_SIZE);
     let startRow = Math.floor(camera.y / TILE_SIZE), endRow = Math.ceil((camera.y + camera.height) / TILE_SIZE);
@@ -493,10 +477,12 @@ function drawBackground() {
     }
 }
 
-// --- Game State Functions ---
+// --- Funções de Estado do Jogo (com adições do joystick) ---
 function resizeCanvas() {
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    camera.width = canvas.width; camera.height = canvas.height; if (player) camera.update();
+    camera.width = canvas.width; camera.height = canvas.height; 
+    if (player) camera.update();
+    setupJoystick(); // Reposiciona o joystick ao redimensionar
 }
 function initGame() {
     resizeCanvas(); player = createPlayer(); camera.update();
@@ -515,9 +501,82 @@ function gameOver() {
 }
 function restartGame() { initGame(); lastTime = performance.now(); requestAnimationFrame(gameLoop); }
 function togglePause() {
+    // Pausa não funciona em mobile por padrão, mas mantemos para desktop
     if (gameState === 'playing') gameState = 'paused';
     else if (gameState === 'paused') { gameState = 'playing'; lastTime = performance.now(); requestAnimationFrame(gameLoop); }
 }
+
+// --- Lógica do Joystick ---
+function setupJoystick() {
+    // Mostra o joystick apenas se for um dispositivo de toque
+    if ('ontouchstart' in window) {
+        joystickContainer.style.display = 'block';
+    }
+    const rect = joystickBase.getBoundingClientRect();
+    joystickCenterX = rect.left + rect.width / 2;
+    joystickCenterY = rect.top + rect.height / 2;
+    joystickRadius = rect.width / 2;
+}
+
+function handleTouchStart(e) {
+    e.preventDefault();
+    if (gameState !== 'playing') return;
+
+    for (const touch of e.changedTouches) {
+        const dist = Math.hypot(touch.clientX - joystickCenterX, touch.clientY - joystickCenterY);
+        if (dist <= joystickRadius * 2) { // Área de ativação um pouco maior
+            joystickActive = true;
+            joystickTouchId = touch.identifier;
+            updateJoystickHandle(touch.clientX, touch.clientY);
+            break; // Processa apenas o primeiro toque na área
+        }
+    }
+}
+
+function handleTouchMove(e) {
+    e.preventDefault();
+    if (!joystickActive || gameState !== 'playing') return;
+
+    for (const touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            updateJoystickHandle(touch.clientX, touch.clientY);
+            break;
+        }
+    }
+}
+
+function handleTouchEnd(e) {
+    e.preventDefault();
+    if (!joystickActive) return;
+
+    for (const touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            joystickActive = false;
+            joystickTouchId = null;
+            joystickVector = { x: 0, y: 0 };
+            joystickHandle.style.transform = `translate(-50%, -50%)`;
+            break;
+        }
+    }
+}
+
+function updateJoystickHandle(x, y) {
+    const dx = x - joystickCenterX;
+    const dy = y - joystickCenterY;
+    const dist = Math.hypot(dx, dy);
+    
+    // Normaliza o vetor de movimento
+    joystickVector.x = dx / dist;
+    joystickVector.y = dy / dist;
+
+    // Limita o movimento visual do pino
+    const clampedDist = Math.min(dist, joystickRadius);
+    const handleX = joystickVector.x * clampedDist;
+    const handleY = joystickVector.y * clampedDist;
+
+    joystickHandle.style.transform = `translate(calc(-50% + ${handleX}px), calc(-50% + ${handleY}px))`;
+}
+
 
 // --- Main Game Loop ---
 function gameLoop(currentTime) {
@@ -554,6 +613,12 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => { keysPressed[e.key.toLowerCase()] = false; });
 window.addEventListener('resize', resizeCanvas);
+
+// Eventos de toque para o joystick
+window.addEventListener('touchstart', handleTouchStart, { passive: false });
+window.addEventListener('touchmove', handleTouchMove, { passive: false });
+window.addEventListener('touchend', handleTouchEnd, { passive: false });
+window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
 // --- Start Game ---
 initGame();
