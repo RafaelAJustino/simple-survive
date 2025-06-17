@@ -43,7 +43,9 @@ let deltaTime = 0;
 let score = 0;
 
 let enemySpawnTimer = 0;
-const enemySpawnInterval = 2000; // ms for normal enemies
+// MODIFICADO: Transformado de const para let para poder ser alterado
+let enemySpawnInterval = 2000; // ms for normal enemies
+const MIN_SPAWN_INTERVAL = 500; // Valor mínimo para o intervalo de spawn
 let enemyStrengthTimer = 0;
 const enemyStrengthInterval = 20000; // Inimigos mais fortes a cada 20 segundos
 
@@ -151,15 +153,15 @@ function createPlayer() {
 
 // --- Enemy Object ---
 function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
-    const spawnMargin = (isBoss ? 4 : 2) * TILE_SIZE;
+    // MODIFICADO: Nova lógica de spawn ao redor do jogador
     let spawnX, spawnY;
-    const side = Math.floor(Math.random() * 4);
-    switch (side) {
-        case 0: spawnX = Math.random() * camera.width + camera.x; spawnY = camera.y - spawnMargin; break;
-        case 1: spawnX = camera.x + camera.width + spawnMargin; spawnY = Math.random() * camera.height + camera.y; break;
-        case 2: spawnX = Math.random() * camera.width + camera.x; spawnY = camera.y + camera.height + spawnMargin; break;
-        case 3: spawnX = camera.x - spawnMargin; spawnY = Math.random() * camera.height + camera.y; break;
-    }
+    // Calcula um raio de spawn um pouco maior que a diagonal da tela para garantir que o inimigo apareça fora da visão
+    const spawnRadius = Math.hypot(camera.width / 2, camera.height / 2) + TILE_SIZE * 2;
+    const randomAngle = Math.random() * 2 * Math.PI;
+
+    // Define a posição de spawn em um círculo ao redor do jogador
+    spawnX = player.x + Math.cos(randomAngle) * spawnRadius;
+    spawnY = player.y + Math.sin(randomAngle) * spawnRadius;
 
     let enemyHp = enemyBaseStats.hp;
     let enemyDamage = type === 'melee' ? enemyBaseStats.damage : enemyBaseStats.rangedDamage;
@@ -170,12 +172,8 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
     let rangedAttackIntervalValue = 2.5 + Math.random();
 
     if (isBoss) {
-        // Boss 10x mais forte:
-        // HP: 5x o HP base dos inimigos atuais (já é bem tanque)
-        // Dano: ~3.3x o dano base dos inimigos atuais (para chegar perto de 10x "força" total)
-        // XP: 10x
-        enemyHp *= 10; // HP 10x
-        enemyDamage *= 5; // Dano 5x (Ajuste para chegar a um "10x mais forte" geral)
+        enemyHp *= 10;
+        enemyDamage *= 5;
         xpDropValue *= 10;
         radius *= 3;
         color = bossTypeIfBoss === 'melee' ? BOSS_COLOR_MELEE : BOSS_COLOR_RANGED;
@@ -201,19 +199,37 @@ function createEnemy(type = 'melee', isBoss = false, bossTypeIfBoss = null) {
         },
         updateNormalEnemy: function (dt) {
             const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
-            let moveX = Math.cos(angleToPlayer), moveY = Math.sin(angleToPlayer), intendedSpeed = this.speed;
+            let moveX = Math.cos(angleToPlayer);
+            let moveY = Math.sin(angleToPlayer);
+            let intendedSpeed = this.speed;
+
             if (this.type === 'ranged') {
                 const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
-                if (distToPlayer < ENEMY_RANGED_PREFERRED_DISTANCE - ENEMY_RANGED_DISTANCE_BUFFER) { moveX *= -1; moveY *= -1; }
-                else if (distToPlayer > ENEMY_RANGED_PREFERRED_DISTANCE + ENEMY_RANGED_DISTANCE_BUFFER && distToPlayer < ENEMY_RANGED_MAX_ATTACK_RANGE * 1.5) {}
-                else { intendedSpeed = 0; }
+
+                // MODIFICADO: Lógica de perseguição constante para inimigos a distância
+                if (distToPlayer < ENEMY_RANGED_PREFERRED_DISTANCE - ENEMY_RANGED_DISTANCE_BUFFER) {
+                    // Muito perto, afasta-se
+                    moveX *= -1;
+                    moveY *= -1;
+                } else if (distToPlayer > ENEMY_RANGED_PREFERRED_DISTANCE + ENEMY_RANGED_DISTANCE_BUFFER) {
+                    // Muito longe, aproxima-se (esta condição já era a padrão, mas explicitamos)
+                    // Não faz nada, pois moveX e moveY já estão corretos
+                } else {
+                    // Na distância ideal, para de se mover para atirar
+                    intendedSpeed = 0;
+                }
+
                 this.rangedAttackTimer -= dt;
+                // Ataca se estiver parado (na distância ideal) e o cooldown tiver acabado
                 if (intendedSpeed === 0 && this.rangedAttackTimer <= 0 && distToPlayer <= ENEMY_RANGED_MAX_ATTACK_RANGE) {
                     createProjectile(this.x, this.y, angleToPlayer, this.damage, 1, 'enemy');
                     this.rangedAttackTimer = this.rangedAttackInterval;
                 }
             }
-            this.x += moveX * intendedSpeed * dt; this.y += moveY * intendedSpeed * dt;
+
+            // Aplica o movimento
+            this.x += moveX * intendedSpeed * dt;
+            this.y += moveY * intendedSpeed * dt;
         },
         updateBossMelee: function (dt) {
             if (this.postDashTimer > 0) { this.postDashTimer -= dt; if (this.postDashTimer <= 0) this.isDashing = false; return; }
@@ -390,12 +406,11 @@ function updateUI() {
 }
 
 function spawnEnemies() {
-    // Checa se é hora de um Boss PRIMEIRO
     if (strengthWaveCount > 0 && strengthWaveCount % 5 === 0 && !bossSpawnedForCurrentBossWave && !bossActive) {
         const bossType = Math.random() < 0.5 ? 'melee' : 'ranged';
         console.log(`Spawning ${bossType.toUpperCase()} BOSS for strength wave ${strengthWaveCount}! (Time: ${Math.floor(gameTime/1000)}s)`);
         createEnemy(bossType, true, bossType);
-        enemySpawnTimer = -3000; // Delay maior para inimigos normais após boss (3s + normal interval)
+        enemySpawnTimer = -3000;
         return;
     }
     if (bossActive) return;
@@ -411,15 +426,21 @@ function spawnEnemies() {
 
 function scaleEnemies() {
     if (enemyStrengthTimer >= enemyStrengthInterval) {
-        strengthWaveCount++; // Incrementa o contador de ondas de fortalecimento
+        strengthWaveCount++;
         enemyBaseStats.hp = Math.floor(enemyBaseStats.hp * 1.12);
         enemyBaseStats.damage = Math.floor(enemyBaseStats.damage * 1.1);
         enemyBaseStats.rangedDamage = Math.floor(enemyBaseStats.rangedDamage * 1.1);
         enemyBaseStats.colorLevel++;
         enemyBaseStats.xpBonus += 1;
         enemyStrengthTimer = 0;
-        console.log(`Enemies stronger! Wave: ${strengthWaveCount}, HP: ${enemyBaseStats.hp}, XP Bonus: ${enemyBaseStats.xpBonus}`);
-        // Se uma nova onda de boss deve começar, reseta a flag
+
+        // MODIFICADO: Reduz o intervalo de spawn a cada onda de fortalecimento
+        if (enemySpawnInterval > MIN_SPAWN_INTERVAL) {
+            enemySpawnInterval -= 50; // Reduz em 0.05s
+        }
+
+        console.log(`Enemies stronger! Wave: ${strengthWaveCount}, HP: ${enemyBaseStats.hp}, New Spawn Interval: ${enemySpawnInterval}ms`);
+
         if (strengthWaveCount % 5 === 0) {
             bossSpawnedForCurrentBossWave = false;
         }
@@ -478,6 +499,7 @@ function initGame() {
     bossActive = false; bossSpawnedForCurrentBossWave = false; strengthWaveCount = 0; // Resetar contadores de boss
     enemies = []; projectiles = []; xpOrbs = []; gameTime = 0; score = 0;
     enemySpawnTimer = 0; enemyStrengthTimer = 0;
+    enemySpawnInterval = 2000; // MODIFICADO: Reseta o intervalo de spawn ao iniciar o jogo
     enemyBaseStats = { hp: 10, damage: 5, rangedDamage: 7, colorLevel: 0, xpBonus: 0 };
     playerChosenUniqueUpgrades.clear(); gameState = 'playing';
     levelUpScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); updateUI();
